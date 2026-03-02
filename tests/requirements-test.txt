@@ -1,0 +1,5 @@
+pytest>=7.4
+moto[dynamodb,s3,sqs]>=4.2
+boto3>=1.28
+fastapi>=0.100
+httpx>=0.24

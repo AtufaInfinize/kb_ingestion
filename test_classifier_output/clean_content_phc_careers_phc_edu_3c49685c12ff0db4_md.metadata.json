@@ -1,0 +1,22 @@
+{
+  "metadataAttributes": {
+    "source_url": "https://careers.phc.edu/place/city/washington-dc-usa",
+    "category": "careers",
+    "subcategory": "washington-dc-usa",
+    "summary": "The page is a job search page for positions in Washington, DC, USA. The job search is restricted to members and requires logging in or creating an account to access.",
+    "title": "PHCareers | Jobs in Washington, DC, USA",
+    "domain": "careers.phc.edu",
+    "university_id": "phc",
+    "content_length": 286,
+    "is_useful_page": "no",
+    "is_high_traffic_page": "no",
+    "related_urls": [],
+    "facts": [
+      {
+        "type": "requirement",
+        "key": "login_required",
+        "value": "yes"
+      }
+    ]
+  }
+}

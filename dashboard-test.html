@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KB Dashboard API Tester</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4e8; padding: 20px; }
+  h1 { font-size: 1.4rem; margin-bottom: 16px; color: #58a6ff; }
+  h2 { font-size: 1rem; color: #8b949e; margin: 20px 0 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+  .config { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; padding: 12px; background: #161b22; border-radius: 8px; border: 1px solid #30363d; }
+  .config label { color: #8b949e; font-size: 0.85rem; white-space: nowrap; }
+  .config input, .config select { background: #0d1117; border: 1px solid #30363d; color: #e1e4e8; padding: 6px 10px; border-radius: 4px; font-size: 0.9rem; }
+  .config input { flex: 1; }
+  .config select { min-width: 80px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px; cursor: pointer; transition: border-color 0.2s; }
+  .card:hover { border-color: #58a6ff; }
+  .card .label { font-size: 0.8rem; color: #8b949e; margin-bottom: 4px; }
+  .card .method { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: 3px; margin-right: 6px; }
+  .card .method.get { background: #238636; color: #fff; }
+  .card .method.post { background: #1f6feb; color: #fff; }
+  .card .method.delete { background: #da3633; color: #fff; }
+  .card .path { font-size: 0.85rem; color: #c9d1d9; font-family: monospace; word-break: break-all; }
+  .card .desc { font-size: 0.75rem; color: #8b949e; margin-top: 6px; }
+
+  .panel { display: flex; gap: 16px; margin-top: 16px; }
+  .panel > div { flex: 1; min-width: 0; }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .panel-title { font-size: 0.85rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+
+  .request-bar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+  .request-bar .method-badge { font-size: 0.8rem; font-weight: 700; padding: 6px 10px; border-radius: 4px; }
+  .request-bar .method-badge.get { background: #238636; }
+  .request-bar .method-badge.post { background: #1f6feb; }
+  .request-bar .method-badge.delete { background: #da3633; }
+  .request-bar .url-display { flex: 1; background: #0d1117; border: 1px solid #30363d; padding: 6px 10px; border-radius: 4px; font-family: monospace; font-size: 0.85rem; color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .request-bar button { background: #238636; color: #fff; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+  .request-bar button:hover { background: #2ea043; }
+  .request-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  textarea { width: 100%; background: #0d1117; border: 1px solid #30363d; color: #e1e4e8; padding: 10px; border-radius: 6px; font-family: 'SF Mono', Monaco, monospace; font-size: 0.8rem; resize: vertical; min-height: 120px; }
+  .response-box { width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; font-family: 'SF Mono', Monaco, monospace; font-size: 0.8rem; min-height: 300px; max-height: 600px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  .response-box.error { border-color: #da3633; color: #f85149; }
+  .response-box.success { border-color: #238636; }
+
+  .status { font-size: 0.8rem; padding: 2px 8px; border-radius: 3px; font-weight: 600; }
+  .status.s2xx { background: #238636; color: #fff; }
+  .status.s4xx { background: #d29922; color: #000; }
+  .status.s5xx { background: #da3633; color: #fff; }
+  .status.loading { background: #1f6feb; color: #fff; }
+
+  .timer { font-size: 0.75rem; color: #8b949e; margin-left: 8px; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+  .tab { padding: 4px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+  .tab.active { background: #30363d; color: #e1e4e8; border-color: #58a6ff; }
+
+  .category-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin: 12px 0; }
+  .cat-card { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 10px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .cat-card:hover { border-color: #58a6ff; background: #161b22; }
+  .cat-card .count { font-size: 1.4rem; font-weight: 700; color: #58a6ff; }
+  .cat-card .name { font-size: 0.75rem; color: #8b949e; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<h1>KB Dashboard API Tester</h1>
+
+<div class="config">
+  <label>API Base:</label>
+  <input id="apiBase" value="https://9mwsknkorc.execute-api.us-east-1.amazonaws.com/dev" />
+  <label>University:</label>
+  <select id="uid">
+    <option value="gmu">GMU</option>
+    <option value="phc">PHC</option>
+  </select>
+</div>
+
+<h2>Endpoints</h2>
+<div class="grid" id="endpoints"></div>
+
+<div id="workspace" style="display:none">
+  <h2>Request</h2>
+  <div class="request-bar">
+    <span id="reqMethod" class="method-badge get">GET</span>
+    <div id="reqUrl" class="url-display"></div>
+    <button id="sendBtn" onclick="sendRequest()">Send</button>
+    <span id="reqStatus" class="status" style="display:none"></span>
+    <span id="reqTimer" class="timer"></span>
+  </div>
+
+  <div class="panel">
+    <div>
+      <div class="panel-header">
+        <span class="panel-title">Request Body</span>
+        <span style="font-size:0.7rem;color:#484f58">(POST/DELETE only)</span>
+      </div>
+      <textarea id="reqBody" placeholder="{}"></textarea>
+    </div>
+    <div>
+      <div class="panel-header">
+        <span class="panel-title">Response</span>
+      </div>
+      <div id="resBody" class="response-box">Click an endpoint, then Send</div>
+    </div>
+  </div>
+
+  <div id="vizPanel" style="margin-top:16px;display:none">
+    <h2>Visual</h2>
+    <div id="vizContent"></div>
+  </div>
+</div>
+
+<script>
+const ENDPOINTS = [
+  { method: 'GET',    path: '/v1/universities',                         desc: 'List all universities',        body: null },
+  { method: 'GET',    path: '/v1/universities/{uid}/stats',              desc: 'Dashboard overview stats',     body: null },
+  { method: 'GET',    path: '/v1/universities/{uid}/categories',         desc: 'Category cards with counts',   body: null },
+  { method: 'GET',    path: '/v1/universities/{uid}/categories/{cat}/pages?limit=10', desc: 'Pages in a category', body: null },
+  { method: 'POST',   path: '/v1/universities/{uid}/pipeline',           desc: 'Start full pipeline',          body: '{"refresh_mode": "incremental"}' },
+  { method: 'GET',    path: '/v1/universities/{uid}/pipeline',           desc: 'List pipeline jobs',           body: null },
+  { method: 'GET',    path: '/v1/universities/{uid}/pipeline/{job_id}',  desc: 'Get pipeline status',          body: null },
+  { method: 'POST',   path: '/v1/universities/{uid}/categories/{cat}/pages', desc: 'Add URLs to category',    body: '{"urls": ["https://example.com/page"], "trigger_crawl": false}' },
+  { method: 'DELETE', path: '/v1/universities/{uid}/categories/{cat}/pages', desc: 'Remove URLs from category', body: '{"urls": ["https://example.com/page"], "action": "mark_excluded"}' },
+  { method: 'POST',   path: '/v1/universities/{uid}/categories/{cat}/media/upload-url', desc: 'Get presigned PDF upload URL', body: '{"filename": "test-catalog.pdf"}' },
+  { method: 'POST',   path: '/v1/universities/{uid}/kb/sync',            desc: 'Trigger KB ingestion sync',    body: '{}' },
+  { method: 'GET',    path: '/v1/universities/{uid}/kb/sync',            desc: 'KB sync status',               body: null },
+];
+
+let currentEndpoint = null;
+
+function renderEndpoints() {
+  const grid = document.getElementById('endpoints');
+  grid.innerHTML = '';
+  ENDPOINTS.forEach((ep, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.onclick = () => selectEndpoint(i);
+    card.innerHTML = `
+      <div><span class="method ${ep.method.toLowerCase()}">${ep.method}</span><span class="path">${ep.path}</span></div>
+      <div class="desc">${ep.desc}</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function resolvePath(path) {
+  const uid = document.getElementById('uid').value;
+  let resolved = path.replace('{uid}', uid);
+  if (resolved.includes('{cat}')) {
+    const cat = prompt('Enter category (e.g., academic_programs, admissions, financial_aid):', 'academic_programs');
+    if (!cat) return null;
+    resolved = resolved.replace('{cat}', cat);
+  }
+  if (resolved.includes('{job_id}')) {
+    const jobId = prompt('Enter job_id:');
+    if (!jobId) return null;
+    resolved = resolved.replace('{job_id}', jobId);
+  }
+  return resolved;
+}
+
+function selectEndpoint(idx) {
+  const ep = ENDPOINTS[idx];
+  const resolved = resolvePath(ep.path);
+  if (!resolved) return;
+
+  currentEndpoint = { ...ep, resolvedPath: resolved };
+  document.getElementById('workspace').style.display = 'block';
+  document.getElementById('reqMethod').textContent = ep.method;
+  document.getElementById('reqMethod').className = 'method-badge ' + ep.method.toLowerCase();
+  document.getElementById('reqUrl').textContent = document.getElementById('apiBase').value + resolved;
+  document.getElementById('reqBody').value = ep.body || '{}';
+  document.getElementById('reqBody').disabled = ep.method === 'GET';
+  document.getElementById('reqStatus').style.display = 'none';
+  document.getElementById('reqTimer').textContent = '';
+  document.getElementById('resBody').textContent = 'Click Send to execute';
+  document.getElementById('resBody').className = 'response-box';
+  document.getElementById('vizPanel').style.display = 'none';
+  document.getElementById('workspace').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function sendRequest() {
+  if (!currentEndpoint) return;
+  const btn = document.getElementById('sendBtn');
+  const statusEl = document.getElementById('reqStatus');
+  const timerEl = document.getElementById('reqTimer');
+  const resEl = document.getElementById('resBody');
+
+  btn.disabled = true;
+  statusEl.style.display = 'inline';
+  statusEl.textContent = 'Loading...';
+  statusEl.className = 'status loading';
+  resEl.textContent = 'Loading...';
+  resEl.className = 'response-box';
+
+  const url = document.getElementById('apiBase').value + currentEndpoint.resolvedPath;
+  const opts = { method: currentEndpoint.method, headers: { 'Content-Type': 'application/json' } };
+  if (currentEndpoint.method !== 'GET') {
+    opts.body = document.getElementById('reqBody').value;
+  }
+
+  const start = performance.now();
+  try {
+    const resp = await fetch(url, opts);
+    const elapsed = ((performance.now() - start) / 1000).toFixed(2);
+    timerEl.textContent = `${elapsed}s`;
+
+    const code = resp.status;
+    statusEl.textContent = code;
+    statusEl.className = 'status ' + (code < 300 ? 's2xx' : code < 500 ? 's4xx' : 's5xx');
+
+    const data = await resp.json();
+    const pretty = JSON.stringify(data, null, 2);
+    resEl.textContent = pretty;
+    resEl.className = 'response-box ' + (code < 300 ? 'success' : 'error');
+
+    renderVisualization(data, currentEndpoint.resolvedPath);
+  } catch (err) {
+    const elapsed = ((performance.now() - start) / 1000).toFixed(2);
+    timerEl.textContent = `${elapsed}s`;
+    statusEl.textContent = 'ERR';
+    statusEl.className = 'status s5xx';
+    resEl.textContent = err.toString();
+    resEl.className = 'response-box error';
+  }
+  btn.disabled = false;
+}
+
+function renderVisualization(data, path) {
+  const vizPanel = document.getElementById('vizPanel');
+  const vizContent = document.getElementById('vizContent');
+
+  // Category cards visualization
+  if (data.categories && Array.isArray(data.categories)) {
+    vizPanel.style.display = 'block';
+    vizContent.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'category-cards';
+    data.categories.forEach(cat => {
+      const card = document.createElement('div');
+      card.className = 'cat-card';
+      card.onclick = () => {
+        currentEndpoint = {
+          method: 'GET',
+          resolvedPath: `/v1/universities/${data.university_id}/categories/${cat.category}/pages?limit=10`,
+          body: null,
+        };
+        document.getElementById('reqMethod').textContent = 'GET';
+        document.getElementById('reqMethod').className = 'method-badge get';
+        document.getElementById('reqUrl').textContent = document.getElementById('apiBase').value + currentEndpoint.resolvedPath;
+        document.getElementById('reqBody').value = '{}';
+        document.getElementById('reqBody').disabled = true;
+        sendRequest();
+      };
+      card.innerHTML = `<div class="count">${cat.count.toLocaleString()}</div><div class="name">${cat.label}</div>`;
+      grid.appendChild(card);
+    });
+    vizContent.appendChild(grid);
+    return;
+  }
+
+  // Stats visualization
+  if (data.urls_by_crawl_status) {
+    vizPanel.style.display = 'block';
+    const stats = data.urls_by_crawl_status;
+    const total = Object.values(stats).reduce((a, b) => a + b, 0);
+    const colors = { crawled: '#238636', pending: '#1f6feb', error: '#d29922', failed: '#da3633', dead: '#484f58', redirected: '#8b949e', blocked_robots: '#6e40c9', skipped_depth: '#30363d' };
+    let html = '<div style="display:flex;height:24px;border-radius:4px;overflow:hidden;margin-bottom:12px">';
+    for (const [status, count] of Object.entries(stats)) {
+      if (count === 0) continue;
+      const pct = (count / total * 100).toFixed(1);
+      html += `<div style="width:${pct}%;background:${colors[status] || '#30363d'}" title="${status}: ${count.toLocaleString()} (${pct}%)"></div>`;
+    }
+    html += '</div><div style="display:flex;flex-wrap:wrap;gap:12px">';
+    for (const [status, count] of Object.entries(stats)) {
+      html += `<span style="font-size:0.8rem"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colors[status] || '#30363d'};margin-right:4px"></span>${status}: <b>${count.toLocaleString()}</b></span>`;
+    }
+    html += '</div>';
+    vizContent.innerHTML = html;
+    return;
+  }
+
+  // Pages table
+  if (data.pages && Array.isArray(data.pages)) {
+    vizPanel.style.display = 'block';
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:0.8rem"><tr style="border-bottom:1px solid #30363d">';
+    html += '<th style="text-align:left;padding:6px;color:#8b949e">URL</th>';
+    html += '<th style="text-align:left;padding:6px;color:#8b949e">Domain</th>';
+    html += '<th style="text-align:left;padding:6px;color:#8b949e">Status</th>';
+    html += '<th style="text-align:left;padding:6px;color:#8b949e">Type</th></tr>';
+    data.pages.forEach(p => {
+      html += `<tr style="border-bottom:1px solid #21262d">`;
+      html += `<td style="padding:6px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="${p.url}" target="_blank" style="color:#58a6ff;text-decoration:none">${p.url}</a></td>`;
+      html += `<td style="padding:6px;color:#8b949e">${p.domain || ''}</td>`;
+      html += `<td style="padding:6px"><span style="color:${p.processing_status === 'classified' ? '#238636' : '#d29922'}">${p.processing_status || '-'}</span></td>`;
+      html += `<td style="padding:6px;color:#8b949e">${p.content_type || '-'}</td></tr>`;
+    });
+    html += '</table>';
+    if (data.next_token) {
+      html += `<button onclick="loadNextPage('${data.university_id}','${data.category}','${data.next_token}')" style="margin-top:8px;background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:6px 16px;border-radius:4px;cursor:pointer">Load Next Page</button>`;
+    }
+    vizContent.innerHTML = html;
+    return;
+  }
+
+  // KB sync visualization
+  if (data.data_sources) {
+    vizPanel.style.display = 'block';
+    let html = '';
+    data.data_sources.forEach(ds => {
+      html += `<div style="margin-bottom:12px;padding:10px;background:#161b22;border:1px solid #30363d;border-radius:6px">`;
+      html += `<div style="font-size:0.85rem;margin-bottom:6px"><b>Data Source:</b> ${ds.data_source_id}</div>`;
+      if (ds.error) {
+        html += `<div style="color:#f85149;font-size:0.8rem">${ds.error}</div>`;
+      } else if (ds.recent_jobs && ds.recent_jobs.length > 0) {
+        ds.recent_jobs.forEach(job => {
+          const s = job.statistics || {};
+          html += `<div style="font-size:0.8rem;padding:6px;margin:4px 0;background:#0d1117;border-radius:4px">`;
+          html += `<span style="color:${job.status === 'COMPLETE' ? '#238636' : '#d29922'};font-weight:600">${job.status}</span>`;
+          html += ` &mdash; ${job.started_at ? new Date(job.started_at).toLocaleString() : ''}`;
+          if (s.numberOfDocumentsScanned) {
+            html += `<br>Scanned: <b>${s.numberOfDocumentsScanned?.toLocaleString()}</b> | Indexed: <b>${s.numberOfNewDocumentsIndexed?.toLocaleString()}</b> | Failed: <b>${s.numberOfDocumentsFailed?.toLocaleString()}</b>`;
+          }
+          html += '</div>';
+        });
+      } else {
+        html += '<div style="color:#8b949e;font-size:0.8rem">No ingestion jobs</div>';
+      }
+      html += '</div>';
+    });
+    vizContent.innerHTML = html;
+    return;
+  }
+
+  vizPanel.style.display = 'none';
+}
+
+function loadNextPage(uid, cat, token) {
+  currentEndpoint = {
+    method: 'GET',
+    resolvedPath: `/v1/universities/${uid}/categories/${cat}/pages?limit=10&next_token=${encodeURIComponent(token)}`,
+    body: null,
+  };
+  document.getElementById('reqUrl').textContent = document.getElementById('apiBase').value + currentEndpoint.resolvedPath;
+  sendRequest();
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    sendRequest();
+  }
+});
+
+renderEndpoints();
+</script>
+</body>
+</html>

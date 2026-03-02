@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+*.egg
+
+# AWS SAM
+.aws-sam/
+
+# pytest
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+*.env
+
+# Large data files (exceed GitHub 100MB limit)
+data/backfill_links_to_gmu.jsonl
+data/gmu/dynamo_url_metadata.json

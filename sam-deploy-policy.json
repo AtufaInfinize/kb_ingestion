@@ -1,0 +1,34 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:*",
+                "s3:*",
+                "lambda:*",
+                "apigateway:*",
+                "dynamodb:*",
+                "sqs:*",
+                "states:*",
+                "events:*",
+                "iam:CreateRole",
+                "iam:DeleteRole",
+                "iam:AttachRolePolicy",
+                "iam:DetachRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:DeleteRolePolicy",
+                "iam:GetRole",
+                "iam:GetRolePolicy",
+                "iam:PassRole",
+                "iam:TagRole",
+                "iam:UntagRole",
+                "iam:ListRolePolicies",
+                "iam:ListAttachedRolePolicies",
+                "logs:*"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+

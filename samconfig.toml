@@ -1,0 +1,13 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "uka-crawler-dev"
+resolve_s3 = true
+s3_prefix = "uka-crawler-dev"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = "Environment=\"dev\" UniversityId=\"phc\""
+image_repositories = []
+
+[default.global.parameters]
+region = "us-east-1"

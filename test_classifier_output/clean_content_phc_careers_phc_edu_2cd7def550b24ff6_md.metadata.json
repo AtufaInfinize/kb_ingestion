@@ -1,0 +1,22 @@
+{
+  "metadataAttributes": {
+    "source_url": "https://careers.phc.edu/place/city/richmond-va-usa",
+    "category": "careers",
+    "subcategory": "richmond-va-usa",
+    "summary": "The page is a job search page for positions in Richmond, VA, USA. The job search is restricted to members and requires logging in or creating an account to access.",
+    "title": "PHCareers | Jobs in Richmond, VA, USA",
+    "domain": "careers.phc.edu",
+    "university_id": "phc",
+    "content_length": 282,
+    "is_useful_page": "no",
+    "is_high_traffic_page": "no",
+    "related_urls": [],
+    "facts": [
+      {
+        "type": "requirement",
+        "key": "login_required",
+        "value": "yes"
+      }
+    ]
+  }
+}
