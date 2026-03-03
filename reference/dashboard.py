@@ -158,7 +158,7 @@ if not creating_new:
     try:
         _stats = cached_get(f"/v1/universities/{uid}/stats")
         _pending_sync = _stats.get("pending_kb_sync", False)
-        _pages_changed = _stats.get("pages_changed_last_crawl", 0)
+        _pages_changed = _stats.get("pages_changed", 0)
         if _pending_sync and _pages_changed > 0:
             st.sidebar.warning(
                 f"{_pages_changed:,} page(s) changed since last crawl — "
@@ -970,18 +970,80 @@ with tab_maintenance:
         st.subheader("Quick Stats")
         try:
             stats_resp = cached_get(f"/v1/universities/{uid}/stats")
-            stat_col1, stat_col2 = st.columns(2)
-            with stat_col1:
+
+            # ── Row 1: Top-level metrics ──
+            kb = stats_resp.get("kb_ingestion", {})
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
                 st.metric("Total URLs", f"{stats_resp.get('total_urls', 0):,}")
+            with m2:
+                st.metric("Content Pages", f"{stats_resp.get('total_content_pages', 0):,}")
+            with m3:
+                st.metric("Ingested (in KB)", f"{kb.get('ingested_pages', 0):,}")
+            with m4:
+                pages_changed = stats_resp.get('pages_changed', 0)
+                pending_kb = stats_resp.get('pending_kb_sync', False)
+                if pending_kb and pages_changed > 0:
+                    st.metric("Awaiting KB Sync", f"{pages_changed:,}")
+                else:
+                    st.metric("Pages Changed", f"{pages_changed:,}")
+
+            # ── Row 2: Secondary metrics ──
+            s1, s2, s3, s4 = st.columns(4)
+            with s1:
+                st.metric("Dead URLs", f"{stats_resp.get('dead_urls', 0):,}")
+            with s2:
+                st.metric("Classified Pages", f"{stats_resp.get('classified_pages', 0):,}")
+            with s3:
+                st.metric("Unclassified", f"{stats_resp.get('unclassified_pages', 0):,}")
+            with s4:
+                st.metric("Media Files", f"{stats_resp.get('total_media_files', 0):,}")
+
+            # ── Crawl status breakdown ──
+            with st.expander("Crawl Status Breakdown"):
                 cs = stats_resp.get("urls_by_crawl_status", {})
-                for k, v in cs.items():
-                    if v > 0:
-                        st.caption(f"{k}: **{v:,}**")
-            with stat_col2:
-                ps = stats_resp.get("urls_by_processing_status", {})
-                for k, v in ps.items():
-                    if v > 0:
-                        st.metric(k.title(), f"{v:,}")
+                if cs:
+                    cols = st.columns(min(len(cs), 4))
+                    for i, (k, v) in enumerate(sorted(cs.items(), key=lambda x: -x[1])):
+                        if v > 0:
+                            with cols[i % len(cols)]:
+                                st.metric(k.replace('_', ' ').title(), f"{v:,}")
+
+            # ── KB Ingestion details ──
+            with st.expander("KB Ingestion Details"):
+                kb = stats_resp.get("kb_ingestion", {})
+                ki1, ki2, ki3, ki4 = st.columns(4)
+                with ki1:
+                    st.metric("Scanned", f"{kb.get('scanned_pages', 0):,}")
+                with ki2:
+                    st.metric("New Indexed", f"{kb.get('new_indexed', 0):,}")
+                with ki3:
+                    st.metric("Modified", f"{kb.get('modified_indexed', 0):,}")
+                with ki4:
+                    st.metric("Ingestion Failed", f"{kb.get('failed_pages', 0):,}")
+
+                ki5, ki6, ki7 = st.columns(3)
+                with ki5:
+                    pc = stats_resp.get('pages_changed', 0)
+                    st.metric("Pages Changed (Crawl)", f"{pc:,}")
+                with ki6:
+                    st.metric("Deleted", f"{kb.get('deleted', 0):,}")
+                with ki7:
+                    status = kb.get('last_sync_status') or 'N/A'
+                    st.metric("Last Sync Status", status)
+                sync_at = kb.get('last_sync_at')
+                if sync_at:
+                    st.caption(f"Last sync: {sync_at}")
+
+            # ── Media breakdown ──
+            media_by_type = stats_resp.get("media_by_type", {})
+            if any(v > 0 for v in media_by_type.values()):
+                with st.expander("Media Breakdown"):
+                    mcols = st.columns(len(media_by_type))
+                    for i, (mtype, mcount) in enumerate(media_by_type.items()):
+                        with mcols[i]:
+                            st.metric(mtype.upper(), f"{mcount:,}")
+
         except Exception as e:
             st.error(f"Failed to load stats: {e}")
 

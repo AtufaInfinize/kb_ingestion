@@ -174,20 +174,54 @@ export interface SaveConfigResponse {
 
 // ─── Stats ──────────────────────────────────────────────
 
+export interface KBIngestionStats {
+  /** Total pages successfully in KB (scanned - failed) */
+  ingested_pages: number;
+  /** Pages that failed Bedrock ingestion (separate from pages_changed) */
+  failed_pages: number;
+  /** Total pages scanned by Bedrock in the latest job */
+  scanned_pages: number;
+  /** New documents indexed in the latest job */
+  new_indexed: number;
+  /** Modified documents re-indexed in the latest job */
+  modified_indexed: number;
+  /** Documents deleted from KB in the latest job */
+  deleted: number;
+  /** "STARTING" | "IN_PROGRESS" | "COMPLETE" | "FAILED" | null */
+  last_sync_status: string | null;
+  last_sync_at: string | null;
+}
+
 export interface DashboardStats {
   university_id: string;
   name: string;
+  /** Total URLs in DynamoDB url-registry (all categories) */
   total_urls: number;
+  /** Sum of all crawl_status counts in DynamoDB */
+  total_discovered_urls: number;
   urls_by_crawl_status: Record<string, number>;
   urls_by_processing_status: Record<string, number>;
-  unclassified_count: number;
+  /** S3 .md files in clean-content/ (source of truth for what can go into KB) */
+  total_content_pages: number;
+  /** S3 .md.metadata.json sidecars (classified pages) */
+  classified_pages: number;
+  /** total_content_pages - classified_pages */
+  unclassified_pages: number;
+  /** Files in S3 raw-pdf/ */
+  total_media_files: number;
+  /** Breakdown by type: pdf, image, audio, video, other */
+  media_by_type: Record<string, number>;
+  /** Bedrock Agent ingestion statistics */
+  kb_ingestion: KBIngestionStats;
+  /** New/modified pages from latest crawl (tracked by content-cleaner, NOT Bedrock failures) */
+  pages_changed: number;
+  /** True when crawl changed pages and KB Sync hasn't been triggered yet */
+  pending_kb_sync: boolean;
+  /** Count of URLs with crawl_status=dead */
+  dead_urls: number;
   last_crawled_at: string | null;
   days_since_crawl: number | null;
   stale_categories: string[];
-  /** True when incremental crawl changed pages and KB Sync hasn't been run yet */
-  pending_kb_sync: boolean;
-  /** Number of pages changed in the last incremental crawl */
-  pages_changed_last_crawl: number;
   crawl_completed_at: string | null;
   config: {
     seed_urls_count: number;

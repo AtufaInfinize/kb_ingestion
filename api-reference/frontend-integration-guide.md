@@ -193,6 +193,7 @@ Returns a comprehensive overview: URL counts by crawl status, processing status,
   "university_id": "gmu",
   "name": "George Mason University",
   "total_urls": 12450,
+  "total_discovered_urls": 12200,
   "urls_by_crawl_status": {
     "crawled": 11200,
     "pending": 50,
@@ -205,15 +206,35 @@ Returns a comprehensive overview: URL counts by crawl status, processing status,
   },
   "urls_by_processing_status": {
     "classified": 10500,
-    "cleaned": 600,
     "unprocessed": 100
   },
-  "unclassified_count": 45,
+  "total_content_pages": 10800,
+  "classified_pages": 10500,
+  "unclassified_pages": 300,
+  "total_media_files": 45,
+  "media_by_type": {
+    "pdf": 30,
+    "image": 10,
+    "audio": 0,
+    "video": 0,
+    "other": 5
+  },
+  "kb_ingestion": {
+    "ingested_pages": 10200,
+    "failed_pages": 88,
+    "scanned_pages": 10500,
+    "new_indexed": 150,
+    "modified_indexed": 50,
+    "deleted": 3,
+    "last_sync_status": "COMPLETE",
+    "last_sync_at": "2026-02-28T04:00:00+00:00"
+  },
+  "pages_changed": 127,
+  "pending_kb_sync": true,
+  "dead_urls": 500,
   "last_crawled_at": "2026-02-28T02:15:00+00:00",
   "days_since_crawl": 2,
   "stale_categories": ["events", "news"],
-  "pending_kb_sync": true,
-  "pages_changed_last_crawl": 127,
   "crawl_completed_at": "2026-02-28T04:30:00+00:00",
   "config": {
     "seed_urls_count": 5,
@@ -224,10 +245,14 @@ Returns a comprehensive overview: URL counts by crawl status, processing status,
 ```
 
 **Frontend usage hints:**
-- Show `pending_kb_sync` as a warning banner: "127 pages changed since last KB sync"
+- Show `pending_kb_sync` + `pages_changed` as a warning banner: "127 pages changed — KB sync needed"
+- `kb_ingestion.ingested_pages` = total pages successfully in KB; `kb_ingestion.failed_pages` = pages that failed ingestion (separate from pending sync)
+- `pages_changed` = new/modified pages from the latest crawl (tracked by content-cleaner, independent of Bedrock ingestion failures)
 - Show `stale_categories` as badges on category cards
 - Use `urls_by_crawl_status` for a donut/bar chart
 - `days_since_crawl` drives "Last crawled X days ago" text
+- `total_content_pages` (S3 .md files) vs `total_urls` (DynamoDB registry) — content pages are source of truth for what can go into KB
+- `media_by_type` for media breakdown (pdf, image, audio, video, other)
 
 ---
 
@@ -1257,18 +1282,36 @@ interface UniversityConfig {
 }
 
 // ─── Stats ──────────────────────────────────────────────
+interface KBIngestionStats {
+  ingested_pages: number;
+  failed_pages: number;
+  scanned_pages: number;
+  new_indexed: number;
+  modified_indexed: number;
+  deleted: number;
+  last_sync_status: string | null;
+  last_sync_at: string | null;
+}
+
 interface DashboardStats {
   university_id: string;
   name: string;
   total_urls: number;
+  total_discovered_urls: number;
   urls_by_crawl_status: Record<string, number>;
   urls_by_processing_status: Record<string, number>;
-  unclassified_count: number;
+  total_content_pages: number;
+  classified_pages: number;
+  unclassified_pages: number;
+  total_media_files: number;
+  media_by_type: Record<string, number>;
+  kb_ingestion: KBIngestionStats;
+  pages_changed: number;
+  pending_kb_sync: boolean;
+  dead_urls: number;
   last_crawled_at: string | null;
   days_since_crawl: number | null;
   stale_categories: string[];
-  pending_kb_sync: boolean;
-  pages_changed_last_crawl: number;
   crawl_completed_at: string | null;
   config: {
     seed_urls_count: number;
