@@ -829,6 +829,12 @@ Resources:
             Path: /v1/universities/{uid}/freshness
             Method: POST
             RestApiId: !Ref CrawlerApi
+        SyncStatusGet:
+          Type: Api
+          Properties:
+            Path: /v1/universities/{uid}/sync-status
+            Method: GET
+            RestApiId: !Ref CrawlerApi
 
   # ===========================================================================
   # API GATEWAY

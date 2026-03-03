@@ -52,14 +52,24 @@ def api_get(path):
 
 def api_post(path, body=None):
     resp = requests.post(f"{api_base()}{path}", json=body or {}, timeout=30)
-    resp.raise_for_status()
+    if not resp.ok:
+        try:
+            detail = resp.json().get("error", resp.text)
+        except Exception:
+            detail = resp.text
+        raise RuntimeError(f"{resp.status_code}: {detail}")
     cached_get.clear()
     return resp.json()
 
 
 def api_delete(path, body=None):
     resp = requests.delete(f"{api_base()}{path}", json=body or {}, timeout=30)
-    resp.raise_for_status()
+    if not resp.ok:
+        try:
+            detail = resp.json().get("error", resp.text)
+        except Exception:
+            detail = resp.text
+        raise RuntimeError(f"{resp.status_code}: {detail}")
     cached_get.clear()
     return resp.json()
 
@@ -464,11 +474,23 @@ with tab_review:
     if creating_new:
         st.info("Create a university configuration first in the Setup tab.")
     else:
-        if st.session_state.get("pending_kb_changes"):
-            st.warning(
-                "Category changes detected — go to the **Ingestion** tab and run "
-                "**KB Sync** to apply changes to the knowledge base."
-            )
+        try:
+            _sync = cached_get(f"/v1/universities/{uid}/sync-status")
+            if _sync.get("sync_needed"):
+                _reasons = _sync.get("reasons", {})
+                _parts = []
+                if _reasons.get("pages_changed"):
+                    _parts.append(f"{_reasons['pages_changed']} pages changed from crawl")
+                if _reasons.get("categories_modified"):
+                    _parts.append(f"{_reasons['categories_modified']} category change(s)")
+                if _reasons.get("data_reset"):
+                    _parts.append("data was reset")
+                st.warning(
+                    f"KB sync needed: {', '.join(_parts) or 'pending'} — "
+                    "go to the **Ingestion** tab and run **KB Sync**."
+                )
+        except Exception:
+            pass
 
         if st.button("Refresh Categories", key="refresh_cats"):
             cached_get.clear()
@@ -528,7 +550,7 @@ with tab_review:
                                     {"new_category": new_cat},
                                 )
                                 st.success(f"Moved {result.get('pages_moved', 0)} pages to {new_cat}")
-                                st.session_state["pending_kb_changes"] = True
+
                                 st.session_state["expanded_cat"] = None
                                 st.rerun()
                             except Exception as e:
@@ -541,7 +563,7 @@ with tab_review:
                             try:
                                 result = api_post(f"/v1/universities/{uid}/categories/{expanded}/delete", {})
                                 st.success(f"Excluded {result.get('pages_deleted', 0)} pages")
-                                st.session_state["pending_kb_changes"] = True
+
                                 st.session_state["expanded_cat"] = None
                                 st.rerun()
                             except Exception as e:
@@ -578,7 +600,7 @@ with tab_review:
                                     },
                                 )
                                 st.success(f"Uploaded: {uploaded_file.name}")
-                                st.session_state["pending_kb_changes"] = True
+
                             except Exception as e:
                                 st.error(f"Upload failed: {e}")
 
@@ -606,7 +628,7 @@ with tab_review:
                                 st.success(f"Added {len(added)} URL(s)")
                                 if errors_list:
                                     st.warning(f"{len(errors_list)} error(s): {errors_list}")
-                                st.session_state["pending_kb_changes"] = True
+
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed: {e}")
@@ -638,7 +660,7 @@ with tab_review:
                                         f"/v1/universities/{uid}/categories/{expanded}/pages",
                                         {"urls": [page["url"]], "action": "mark_excluded"},
                                     )
-                                    st.session_state["pending_kb_changes"] = True
+    
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Remove failed: {e}")
@@ -661,11 +683,25 @@ with tab_ingestion:
     else:
         has_kb = bool(existing_config.get("kb_config", {}).get("knowledge_base_id"))
 
-        if st.session_state.get("pending_kb_changes"):
-            st.warning(
-                "Category changes detected — run **KB Sync** below to apply changes "
-                "to the knowledge base."
-            )
+        try:
+            _sync_ing = cached_get(f"/v1/universities/{uid}/sync-status")
+            if _sync_ing.get("sync_needed"):
+                _r = _sync_ing.get("reasons", {})
+                _parts = []
+                if _r.get("pages_changed"):
+                    _parts.append(f"{_r['pages_changed']} pages changed from crawl")
+                if _r.get("categories_modified"):
+                    _parts.append(f"{_r['categories_modified']} category change(s)")
+                if _r.get("data_reset"):
+                    _parts.append("data was reset")
+                st.warning(
+                    f"KB sync needed: {', '.join(_parts) or 'pending'} — "
+                    "run **KB Sync** below to apply."
+                )
+            if _sync_ing.get("pipeline_running"):
+                st.info("A pipeline is currently running — KB sync will be available after it completes.")
+        except Exception:
+            pass
 
         if not has_kb:
             st.warning(
@@ -681,7 +717,7 @@ with tab_ingestion:
                     result = api_post(f"/v1/universities/{uid}/kb/sync", {})
                     jobs = result.get("ingestion_jobs", [])
                     st.success(f"KB sync started — {len(jobs)} ingestion job(s)")
-                    st.session_state.pop("pending_kb_changes", None)
+                    cached_get.clear()
                 except Exception as e:
                     st.error(f"Failed to start sync: {e}")
         with col_status:

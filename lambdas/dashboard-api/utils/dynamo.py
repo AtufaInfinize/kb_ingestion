@@ -227,3 +227,50 @@ def query_pages_by_category(university_id, category, limit=50, next_token=None,
     new_token = encode_token(resp.get('LastEvaluatedKey'))
 
     return items, new_token
+
+
+def record_kb_sync_event(university_id: str, event_type: str = 'category_change'):
+    """Record that a KB-affecting change happened so the dashboard shows 'sync needed'.
+
+    event_type:
+      'category_change' — atomically increments categories_modified counter
+      'data_reset'      — sets data_reset = true
+    """
+    try:
+        if event_type == 'category_change':
+            entity_table.update_item(
+                Key={'university_id': university_id, 'entity_key': 'kb_sync_status'},
+                UpdateExpression='ADD categories_modified :n SET entity_type = :et',
+                ExpressionAttributeValues={':n': 1, ':et': 'crawl_state'},
+            )
+        elif event_type == 'data_reset':
+            entity_table.update_item(
+                Key={'university_id': university_id, 'entity_key': 'kb_sync_status'},
+                UpdateExpression='SET data_reset = :t, entity_type = :et',
+                ExpressionAttributeValues={':t': True, ':et': 'crawl_state'},
+            )
+    except Exception as e:
+        logger.warning(f"Could not record kb_sync_event ({event_type}) for {university_id}: {e}")
+
+
+def find_running_pipeline(university_id: str):
+    """Check if a pipeline is currently running for this university.
+
+    Returns the job_id if found, None otherwise.
+    """
+    from boto3.dynamodb.conditions import Key, Attr
+
+    try:
+        resp = jobs_table.query(
+            IndexName='university-created-index',
+            KeyConditionExpression=Key('university_id').eq(university_id),
+            FilterExpression=Attr('overall_status').eq('running'),
+            ScanIndexForward=False,
+            Limit=5,
+        )
+        items = resp.get('Items', [])
+        if items:
+            return items[0].get('job_id')
+    except Exception as e:
+        logger.warning(f"Could not check running pipelines for {university_id}: {e}")
+    return None

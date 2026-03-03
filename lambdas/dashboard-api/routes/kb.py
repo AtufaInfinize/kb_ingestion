@@ -9,7 +9,7 @@ import boto3
 from fastapi import APIRouter, Request
 
 from utils.response import api_response
-from utils.dynamo import entity_table
+from utils.dynamo import entity_table, find_running_pipeline
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -41,6 +41,13 @@ async def start_sync(uid: str, request: Request):
     if not knowledge_base_id or not data_source_ids:
         return api_response(400, {'error': 'knowledge_base_id and data_source_ids required in kb_config'})
 
+    running_job = find_running_pipeline(uid)
+    if running_job:
+        return api_response(409, {
+            'error': 'A pipeline is currently running — sync after it completes',
+            'running_job_id': running_job,
+        })
+
     results = []
     for ds_id in data_source_ids:
         try:
@@ -64,11 +71,13 @@ async def start_sync(uid: str, request: Request):
     try:
         entity_table.update_item(
             Key={'university_id': uid, 'entity_key': 'kb_sync_status'},
-            UpdateExpression='SET #st = :s, synced_at = :ts',
+            UpdateExpression='SET #st = :s, synced_at = :ts, categories_modified = :zero, data_reset = :f',
             ExpressionAttributeNames={'#st': 'status'},
             ExpressionAttributeValues={
                 ':s': 'syncing',
                 ':ts': datetime.now(timezone.utc).isoformat(),
+                ':zero': 0,
+                ':f': False,
             },
         )
     except Exception as e:

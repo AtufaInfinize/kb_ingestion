@@ -25,6 +25,7 @@ Endpoints:
   GET  /v1/universities/{uid}/dlq                      — Inspect DLQ messages (read-only)
   GET  /v1/universities/{uid}/freshness                — Get per-category freshness windows
   POST /v1/universities/{uid}/freshness                — Save per-category freshness windows
+  GET  /v1/universities/{uid}/sync-status               — Fast sync health check (lightweight)
 
 Local dev:
   uvicorn handler:app --reload
@@ -38,7 +39,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
 from utils.response import DecimalJSONResponse
-from routes import stats, categories, pipeline, kb, classification, config, reset, maintenance, freshness
+from routes import stats, categories, pipeline, kb, classification, config, reset, maintenance, freshness, sync_status
 
 logging.basicConfig(level=logging.INFO)
 
@@ -71,6 +72,7 @@ app.include_router(config.router, prefix="/v1")
 app.include_router(reset.router, prefix="/v1")
 app.include_router(maintenance.router, prefix="/v1")
 app.include_router(freshness.router, prefix="/v1")
+app.include_router(sync_status.router, prefix="/v1")
 
 # Mangum ASGI adapter — this becomes the Lambda handler entry point
 lambda_handler = Mangum(app, lifespan="off")

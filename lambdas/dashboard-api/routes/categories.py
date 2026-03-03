@@ -14,6 +14,7 @@ from fastapi import APIRouter, Query, Request
 from utils.response import api_response
 from utils.dynamo import (
     count_all_categories, query_pages_by_category, url_table,
+    record_kb_sync_event,
 )
 from utils.constants import VALID_CATEGORIES, CATEGORY_LABELS
 
@@ -132,6 +133,9 @@ async def add_pages(uid: str, cat: str, request: Request):
         except Exception as e:
             errors.append({'url': url, 'error': str(e)})
 
+    if added:
+        record_kb_sync_event(uid, 'category_change')
+
     return api_response(200, {'added': added, 'errors': errors})
 
 
@@ -170,6 +174,9 @@ async def remove_pages(uid: str, cat: str, request: Request):
             removed.append({'url': url, 'action': action})
         except Exception as e:
             errors.append({'url': url, 'error': str(e)})
+
+    if removed:
+        record_kb_sync_event(uid, 'category_change')
 
     return api_response(200, {'removed': removed, 'errors': errors})
 
@@ -300,6 +307,9 @@ async def rename_category(uid: str, cat: str, request: Request):
             break
         kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
 
+    if moved > 0:
+        record_kb_sync_event(uid, 'category_change')
+
     return api_response(200, {
         'old_category': cat,
         'new_category': new_category,
@@ -351,6 +361,9 @@ async def delete_category(uid: str, cat: str, request: Request):
         if 'LastEvaluatedKey' not in resp:
             break
         kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
+
+    if deleted > 0:
+        record_kb_sync_event(uid, 'category_change')
 
     return api_response(200, {
         'category': cat,

@@ -158,8 +158,10 @@ def get_stats(uid: str):
                 'last_sync_at': kb_ingestion.get('last_sync_at'),
             },
 
-            # --- KB sync (content-cleaner tracking) ---
+            # --- KB sync (content-cleaner + category + reset tracking) ---
             'pages_changed': pages_changed,
+            'categories_modified': kb_sync_info.get('categories_modified', 0),
+            'data_reset': kb_sync_info.get('data_reset', False),
             'pending_kb_sync': pending_kb,
 
             # --- Dead URLs ---
@@ -414,14 +416,27 @@ def _get_kb_sync_status(university_id: str) -> dict:
         item = resp.get('Item', {})
         status = item.get('status', '')
         pages_changed = int(item.get('pages_changed', 0))
+        categories_modified = int(item.get('categories_modified', 0))
+        data_reset = bool(item.get('data_reset', False))
+        pending = (
+            status == 'pending_sync'
+            or categories_modified > 0
+            or data_reset
+        )
         return {
-            'pending_kb_sync': status == 'pending_sync',
+            'pending_kb_sync': pending,
             'pages_changed': pages_changed,
+            'categories_modified': categories_modified,
+            'data_reset': data_reset,
             'crawl_completed_at': item.get('crawl_completed_at'),
         }
     except Exception as e:
         logger.warning(f'Could not read kb_sync_status for {university_id}: {e}')
-        return {'pending_kb_sync': False, 'pages_changed': 0, 'crawl_completed_at': None}
+        return {
+            'pending_kb_sync': False, 'pages_changed': 0,
+            'categories_modified': 0, 'data_reset': False,
+            'crawl_completed_at': None,
+        }
 
 
 def _load_config(university_id):

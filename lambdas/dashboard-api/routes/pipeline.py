@@ -12,6 +12,7 @@ from fastapi import APIRouter, Query, Request
 from utils.response import api_response
 from utils.dynamo import (
     jobs_table, get_crawl_stats, get_processing_stats, get_queue_depth,
+    find_running_pipeline,
 )
 from utils.pagination import encode_token, decode_token
 
@@ -42,6 +43,13 @@ async def start_pipeline(uid: str, request: Request):
     domain = body.get('domain', '')
     if refresh_mode == 'domain' and not domain:
         return api_response(400, {'error': 'domain is required for domain refresh_mode'})
+
+    running_job = find_running_pipeline(uid)
+    if running_job:
+        return api_response(409, {
+            'error': 'A pipeline is already running for this university',
+            'running_job_id': running_job,
+        })
 
     now = datetime.now(timezone.utc)
     ts = now.strftime('%Y%m%d-%H%M%S')

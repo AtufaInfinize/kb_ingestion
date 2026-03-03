@@ -9,7 +9,7 @@ import boto3
 from fastapi import APIRouter, Request
 
 from utils.response import api_response
-from utils.dynamo import url_table, jobs_table
+from utils.dynamo import url_table, jobs_table, record_kb_sync_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -64,6 +64,8 @@ async def reset_university(uid: str, request: Request):
             results.update(_reset_all(uid))
         else:
             results.update(_reset_classification(uid))
+
+        record_kb_sync_event(uid, 'data_reset')
 
         return api_response(200, results)
 
