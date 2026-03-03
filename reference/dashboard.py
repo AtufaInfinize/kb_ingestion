@@ -476,19 +476,10 @@ with tab_review:
     else:
         try:
             _sync = cached_get(f"/v1/universities/{uid}/sync-status")
-            if _sync.get("sync_needed"):
-                _reasons = _sync.get("reasons", {})
-                _parts = []
-                if _reasons.get("pages_changed"):
-                    _parts.append(f"{_reasons['pages_changed']} pages changed from crawl")
-                if _reasons.get("categories_modified"):
-                    _parts.append(f"{_reasons['categories_modified']} category change(s)")
-                if _reasons.get("data_reset"):
-                    _parts.append("data was reset")
-                st.warning(
-                    f"KB sync needed: {', '.join(_parts) or 'pending'} — "
-                    "go to the **Ingestion** tab and run **KB Sync**."
-                )
+            if _sync.get("sync_needed") and _sync.get("message"):
+                st.warning(f"{_sync['message']} Go to the **Ingestion** tab and run **KB Sync**.")
+            elif _sync.get("pipeline_running") and _sync.get("message"):
+                st.info(_sync["message"])
         except Exception:
             pass
 
@@ -685,21 +676,10 @@ with tab_ingestion:
 
         try:
             _sync_ing = cached_get(f"/v1/universities/{uid}/sync-status")
-            if _sync_ing.get("sync_needed"):
-                _r = _sync_ing.get("reasons", {})
-                _parts = []
-                if _r.get("pages_changed"):
-                    _parts.append(f"{_r['pages_changed']} pages changed from crawl")
-                if _r.get("categories_modified"):
-                    _parts.append(f"{_r['categories_modified']} category change(s)")
-                if _r.get("data_reset"):
-                    _parts.append("data was reset")
-                st.warning(
-                    f"KB sync needed: {', '.join(_parts) or 'pending'} — "
-                    "run **KB Sync** below to apply."
-                )
-            if _sync_ing.get("pipeline_running"):
-                st.info("A pipeline is currently running — KB sync will be available after it completes.")
+            if _sync_ing.get("sync_needed") and _sync_ing.get("message"):
+                st.warning(f"{_sync_ing['message']} Run **KB Sync** below to apply.")
+            elif _sync_ing.get("pipeline_running") and _sync_ing.get("message"):
+                st.info(_sync_ing["message"])
         except Exception:
             pass
 

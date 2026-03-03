@@ -465,6 +465,8 @@ export interface SyncStatusResponse {
   university_id: string;
   /** True when any sync trigger is active */
   sync_needed: boolean;
+  /** Human-readable banner text. null when no action needed. Display directly in UI */
+  message: string | null;
   /** Breakdown of why sync is needed */
   reasons: {
     pages_changed: number;
