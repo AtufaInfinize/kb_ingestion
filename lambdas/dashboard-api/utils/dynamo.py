@@ -154,6 +154,30 @@ def get_processing_stats(university_id):
     }
 
 
+def count_total_urls(university_id):
+    """Count ALL URLs for a university via university-category-index (partition key only).
+
+    Paginated to handle large result sets correctly. This covers every item
+    that has a page_category attribute set (crawler always sets 'unknown' on
+    registration, so virtually all items are included).
+    """
+    from boto3.dynamodb.conditions import Key
+
+    count = 0
+    kwargs = {
+        'IndexName': 'university-category-index',
+        'KeyConditionExpression': Key('university_id').eq(university_id),
+        'Select': 'COUNT',
+    }
+    while True:
+        resp = url_table.query(**kwargs)
+        count += resp['Count']
+        if 'LastEvaluatedKey' not in resp:
+            break
+        kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
+    return count
+
+
 def get_queue_depth(queue_url):
     """Get approximate number of messages in an SQS queue."""
     try:

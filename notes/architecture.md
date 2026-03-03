@@ -865,7 +865,7 @@ Paginated endpoints accept `?limit=N&next_token=TOKEN` query parameters.
 - **Category cards:** Fire ~19 parallel `query(Select='COUNT')` calls against `university-category-index` GSI using ThreadPoolExecutor. Returns in <1 second.
 - **Stats endpoint:** Uses sum of category counts for "classified" count (fast) instead of paginated filtered scan through 100K+ items.
 - **Pipeline status:** Augments stored job record with live DynamoDB counts + SQS queue depths. Detects stage transitions automatically.
-- **Stats endpoint (`GET /v1/universities/{uid}/stats`):** Also returns `pending_kb_sync` (bool — true when a crawl changed pages and a KB sync is needed), `pages_changed_last_crawl` (int — count of pages changed in the last incremental crawl), and `crawl_completed_at` (str — ISO timestamp of last crawl completion). These fields come from the `kb_sync_status` entity in `entity-store-dev`.
+- **Stats endpoint (`GET /v1/universities/{uid}/stats`):** Returns comprehensive stats from 3 sources run in parallel (8 workers): DynamoDB (total URLs, crawl/processing status), S3 (content pages, classified, media files with 50K object cap), and Bedrock Agent (KB ingestion stats). Also returns `pages_changed` (int — new/modified pages from the latest crawl, tracked by content-cleaner), `pending_kb_sync` (bool — true when pages changed and KB sync hasn't been triggered), and `crawl_completed_at`. The `kb_ingestion` object contains `ingested_pages`, `failed_pages`, `scanned_pages`, `new_indexed`, `modified_indexed`, `deleted`, `last_sync_status`, and `last_sync_at`. Failed ingestions are reported separately and are NOT included in `pages_changed`.
 
 ---
 

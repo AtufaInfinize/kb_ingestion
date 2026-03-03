@@ -80,25 +80,32 @@ Dashboard → API Gateway → Lambda
 **Handler**: `stats.get_stats()`
 
 ```
-Dashboard → API Gateway → Lambda
+Dashboard → API Gateway → Lambda (ThreadPoolExecutor, 8 workers)
   └→ S3.get_object('configs/{uid}.json')           ← load config for name
-  └→ DynamoDB.query × 8 (parallel)                 ← count by crawl_status
+  ├→ DynamoDB.query × 8 (parallel)                 ← count by crawl_status (get_crawl_stats)
   │    GSI: university-status-index
   │    Statuses: pending, crawled, error, failed, dead, redirected, blocked_robots, skipped_depth
-  └→ DynamoDB.query × 18 (parallel)                ← count by category
+  ├→ DynamoDB.query × 18 (parallel)                ← count by category (get_processing_stats)
   │    GSI: university-category-index
   │    All VALID_CATEGORIES except 'excluded'
-  └→ DynamoDB.query × 1                            ← count crawled (for unprocessed calc)
-       GSI: university-status-index
-  ← Returns {total_urls, urls_by_crawl_status, urls_by_processing_status}
-  └→ DynamoDB.get_item(entity-store-dev, Key={university_id, 'kb_sync_status'})  ← kb sync state
-  ← Returns {total_urls, ..., pending_kb_sync: bool, pages_changed_last_crawl: int, crawl_completed_at: str}
+  ├→ DynamoDB.query (paginated)                    ← count_total_urls (partition key only)
+  │    GSI: university-category-index
+  ├→ S3.list_objects_v2 (paginated, max 50K)       ← _count_s3_content (md + metadata counts)
+  │    Prefix: clean-content/{uid}/
+  ├→ S3.list_objects_v2 (paginated, max 10K)       ← _count_s3_media (by type)
+  │    Prefix: raw-pdf/{uid}/
+  ├→ DynamoDB.get_item(entity-store-dev)            ← _get_stale_info (freshness windows)
+  ├→ DynamoDB.get_item(entity-store-dev)            ← _get_kb_sync_status (pages_changed, pending)
+  ├→ Bedrock Agent.list_ingestion_jobs × N          ← _get_kb_ingestion_stats (per data source)
+  ← Returns {total_urls, total_content_pages, kb_ingestion: {...}, pages_changed, pending_kb_sync, ...}
 ```
 
-**Services**: S3, DynamoDB (~27 parallel GSI COUNT queries + 1 entity-store get_item)
+**Services**: S3, DynamoDB (~27 parallel GSI COUNT queries + entity-store lookups), Bedrock Agent
 
-- `pending_kb_sync=true` when the last incremental crawl changed pages and KB Sync hasn't been run yet
-- Dashboard sidebar shows a warning banner with the page count when this is true
+- `pages_changed` = new/modified pages from last crawl (tracked by content-cleaner, NOT Bedrock failures)
+- `pending_kb_sync=true` when crawl changed pages and KB Sync hasn't been triggered yet
+- `kb_ingestion.failed_pages` = Bedrock ingestion failures (separate, not counted in pages_changed)
+- Dashboard sidebar shows a warning banner with the page count when pending_kb_sync is true
 
 ---
 
