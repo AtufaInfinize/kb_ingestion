@@ -38,9 +38,12 @@ def get_sync_status(uid: str):
 
         pipeline_running = find_running_pipeline(uid) is not None
 
+        message = _build_message(sync_needed, pages_changed, categories_modified, data_reset, pipeline_running)
+
         return api_response(200, {
             'university_id': uid,
             'sync_needed': sync_needed,
+            'message': message,
             'reasons': {
                 'pages_changed': pages_changed,
                 'categories_modified': categories_modified,
@@ -55,3 +58,24 @@ def get_sync_status(uid: str):
     except Exception as e:
         logger.error(f"sync-status error for {uid}: {e}", exc_info=True)
         return api_response(500, {'error': str(e)})
+
+
+def _build_message(sync_needed, pages_changed, categories_modified, data_reset, pipeline_running):
+    """Build a human-readable status message for the frontend banner."""
+    if pipeline_running:
+        return "Pipeline running — KB sync will be available after it completes."
+
+    if not sync_needed:
+        return None
+
+    parts = []
+    if pages_changed > 0:
+        parts.append(f"{pages_changed} page{'s' if pages_changed != 1 else ''} changed from crawl")
+    if categories_modified > 0:
+        parts.append(f"{categories_modified} category change{'s' if categories_modified != 1 else ''}")
+    if data_reset:
+        parts.append("data was reset")
+
+    if parts:
+        return f"KB sync needed: {' + '.join(parts)}."
+    return "KB sync needed."

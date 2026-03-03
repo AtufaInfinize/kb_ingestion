@@ -62,6 +62,7 @@ All endpoints return a JSON body directly (no wrapper envelope). HTTP status cod
 | `202` | Accepted (async operation started) |
 | `400` | Validation error — check `error` field |
 | `404` | Resource not found |
+| `409` | Conflict — a pipeline is already running (see guards below) |
 | `500` | Server error |
 
 Error responses always include an `error` string:
@@ -230,6 +231,8 @@ Returns a comprehensive overview: URL counts by crawl status, processing status,
     "last_sync_at": "2026-02-28T04:00:00+00:00"
   },
   "pages_changed": 127,
+  "categories_modified": 3,
+  "data_reset": false,
   "pending_kb_sync": true,
   "dead_urls": 500,
   "last_crawled_at": "2026-02-28T02:15:00+00:00",
@@ -245,7 +248,10 @@ Returns a comprehensive overview: URL counts by crawl status, processing status,
 ```
 
 **Frontend usage hints:**
-- Show `pending_kb_sync` + `pages_changed` as a warning banner: "127 pages changed — KB sync needed"
+- Show `pending_kb_sync` as a warning banner with reason breakdown: "127 pages changed from crawl + 3 category changes — KB sync needed"
+- `pending_kb_sync` is true when ANY of: `pages_changed > 0` OR `categories_modified > 0` OR `data_reset == true` OR internal status is `"pending_sync"`
+- `categories_modified` = number of category operations (rename/delete/add/remove pages) since last sync
+- `data_reset` = true when data was reset since last sync
 - `kb_ingestion.ingested_pages` = total pages successfully in KB; `kb_ingestion.failed_pages` = pages that failed ingestion (separate from pending sync)
 - `pages_changed` = new/modified pages from the latest crawl (tracked by content-cleaner, independent of Bedrock ingestion failures)
 - Show `stale_categories` as badges on category cards
@@ -634,6 +640,16 @@ POST /v1/universities/{uid}/pipeline
 }
 ```
 
+**Errors:**
+- `400` — Invalid `refresh_mode` or missing `domain` for domain mode
+- `409` — A pipeline is already running for this university. Response includes `running_job_id`:
+```json
+{
+  "error": "A pipeline is already running for this university",
+  "running_job_id": "gmu-incremental-20260302-021500"
+}
+```
+
 ---
 
 ### List Jobs
@@ -800,10 +816,17 @@ Triggers Bedrock Knowledge Base ingestion for all configured data sources.
 }
 ```
 
-**Side effect:** Clears the `pending_kb_sync` flag — the "pages changed" warning banner should disappear after calling this.
+**Side effect:** Clears ALL sync counters — `pages_changed`, `categories_modified`, and `data_reset` all reset to 0/false. The "sync needed" warning banner should disappear after calling this.
 
 **Errors:**
 - `400` — No `kb_config` in university config, or missing `knowledge_base_id` / `data_source_ids`
+- `409` — A pipeline is currently running. Response includes `running_job_id`:
+```json
+{
+  "error": "A pipeline is currently running — sync after it completes",
+  "running_job_id": "gmu-incremental-20260302-021500"
+}
+```
 
 ---
 
@@ -844,6 +867,56 @@ Returns the 3 most recent ingestion jobs per data source.
 ```
 
 **Ingestion status values:** `STARTING`, `IN_PROGRESS`, `COMPLETE`, `FAILED`
+
+---
+
+## 7.5. Sync Status Health Check
+
+### Get Sync Status
+
+```
+GET /v1/universities/{uid}/sync-status
+```
+
+Lightweight endpoint (2 DynamoDB calls) for checking whether KB sync is needed. Much cheaper than the full stats endpoint (8+ parallel queries). Use this for polling/banners.
+
+**Response:**
+```json
+{
+  "university_id": "gmu",
+  "sync_needed": true,
+  "message": "KB sync needed: 127 pages changed from crawl + 3 category changes.",
+  "reasons": {
+    "pages_changed": 127,
+    "categories_modified": 3,
+    "data_reset": false
+  },
+  "status": "pending_sync",
+  "crawl_completed_at": "2026-03-01T15:32:27+00:00",
+  "synced_at": "2026-02-28T10:00:00+00:00",
+  "pipeline_running": false
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sync_needed` | boolean | True when any reason is non-zero or status is `"pending_sync"` |
+| `message` | string\|null | Human-readable banner text. `null` when no action needed. Display directly in UI |
+| `reasons.pages_changed` | int | Pages changed from crawl (set by content-cleaner) |
+| `reasons.categories_modified` | int | Category operations since last sync (rename/delete/add/remove) |
+| `reasons.data_reset` | boolean | True when data was reset since last sync |
+| `status` | string\|null | Raw KB sync status: `"pending_sync"`, `"syncing"`, `"no_changes"`, or null |
+| `crawl_completed_at` | string\|null | When the last crawl completed |
+| `synced_at` | string\|null | When KB was last synced |
+| `pipeline_running` | boolean | Whether a pipeline is currently running |
+
+**Frontend usage:**
+- Poll every 5-10 seconds for sync banner updates (lightweight — only 2 DynamoDB calls)
+- Display the `message` field directly as the banner text — no need to build it client-side
+- Disable "Sync KB" button when `pipeline_running == true`
+- After calling `POST /kb/sync`, poll this until `status` changes from `"syncing"` to something else
 
 ---
 
@@ -1173,6 +1246,7 @@ type RefreshMode = "full" | "incremental" | "domain";
 | GET /pipeline/{id} | No | — | Must be fresh for live progress |
 | GET /kb/sync | Yes | 30s | Only changes during ingestion |
 | GET /freshness | Yes | 60s | Admin-only setting |
+| GET /sync-status | Yes | 5s | Lightweight, poll for banners |
 | GET /classification | Yes | 30s | Batch jobs run for hours |
 | GET /dlq | No | — | Peek should be fresh |
 
@@ -1188,8 +1262,9 @@ After any POST/DELETE that modifies data, invalidate related caches:
 | POST /media/upload-url + /media/process | GET /.../pages, GET /categories |
 | POST /.../rename | GET /categories, GET /.../pages (both old and new) |
 | POST /.../delete | GET /categories, GET /.../pages |
-| POST /kb/sync | GET /kb/sync, GET /stats (clears pending_kb_sync) |
+| POST /kb/sync | GET /kb/sync, GET /stats, GET /sync-status (clears all counters) |
 | POST /freshness | GET /freshness |
+| POST /.../rename, POST /.../delete | GET /categories, GET /.../pages, GET /sync-status |
 | POST /reset | ALL caches for this university |
 
 ---
@@ -1216,6 +1291,13 @@ async function safeApiFetch<T>(path: string, options?: RequestInit): Promise<T> 
 
   if (res.status === 404) {
     throw new NotFoundError(`Resource not found`);
+  }
+
+  if (res.status === 409) {
+    const body = await res.json();
+    // Show conflict error — e.g. "A pipeline is already running"
+    // body.running_job_id tells you which job is blocking
+    throw new ConflictError(body.error, body.running_job_id);
   }
 
   if (res.status === 500) {
@@ -1307,6 +1389,8 @@ interface DashboardStats {
   media_by_type: Record<string, number>;
   kb_ingestion: KBIngestionStats;
   pages_changed: number;
+  categories_modified: number;
+  data_reset: boolean;
   pending_kb_sync: boolean;
   dead_urls: number;
   last_crawled_at: string | null;
@@ -1416,6 +1500,22 @@ interface PipelineJob {
   clean_stage: CleanStage;
   classify_stage: ClassifyStage;
   ttl: number;
+}
+
+// ─── Sync Status ─────────────────────────────────────────
+interface SyncStatusResponse {
+  university_id: string;
+  sync_needed: boolean;
+  message: string | null;
+  reasons: {
+    pages_changed: number;
+    categories_modified: number;
+    data_reset: boolean;
+  };
+  status: string | null;
+  crawl_completed_at: string | null;
+  synced_at: string | null;
+  pipeline_running: boolean;
 }
 
 // ─── KB Sync ────────────────────────────────────────────
@@ -1541,3 +1641,123 @@ interface ResetResponse {
 | 20 | GET | `/v1/universities/{uid}/classification` | Classification job status |
 | 21 | GET | `/v1/universities/{uid}/dlq` | DLQ inspection |
 | 22 | POST | `/v1/universities/{uid}/reset` | Reset university data |
+| 23 | GET | `/v1/universities/{uid}/sync-status` | Lightweight sync health check |
+
+---
+
+## Frontend Implementation Steps
+
+Exact steps for the frontend to integrate the new sync-status, 409 guards, and KB sync tracking:
+
+### Step 1: Add TypeScript Types
+
+Add `SyncStatusResponse` interface (see TypeScript Types section above) and add `categories_modified: number` + `data_reset: boolean` to `DashboardStats`.
+
+### Step 2: Create `getSyncStatus()` Hook with Smart Polling
+
+```typescript
+async function getSyncStatus(uid: string): Promise<SyncStatusResponse> {
+  return apiFetch(`/v1/universities/${uid}/sync-status`);
+}
+
+function useSyncStatus(uid: string) {
+  const [data, setData] = useState<SyncStatusResponse | null>(null);
+
+  const fetch = useCallback(async () => {
+    const res = await getSyncStatus(uid);
+    setData(res);
+    return res;
+  }, [uid]);
+
+  // Initial fetch on mount
+  useEffect(() => { fetch(); }, [fetch]);
+
+  // Poll only when something is in-flight (pipeline running or sync in progress)
+  useEffect(() => {
+    if (!data?.pipeline_running && data?.status !== "syncing") return;
+
+    const interval = setInterval(fetch, 10_000); // every 10s
+    return () => clearInterval(interval);
+  }, [data?.pipeline_running, data?.status, fetch]);
+
+  return { data, refetch: fetch };
+}
+```
+
+**Polling strategy — when to call:**
+
+| Scenario | Calls | Interval |
+|---|---|---|
+| Page load | 1 | -- |
+| After any mutation (rename, delete, add/remove pages, start pipeline, KB sync, reset) | 1 | -- |
+| Pipeline running (`pipeline_running == true`) | Repeated | Every 10s |
+| KB sync in progress (`status == "syncing"`) | Repeated | Every 10s |
+| Idle (no pipeline, no sync) | 0 | No polling |
+
+Call `refetch()` after any mutation. Continuous polling only happens while a pipeline or sync is active — no wasted calls when idle.
+
+### Step 3: Display Backend-Provided Sync Banner Message
+
+The backend returns a pre-built `message` string — just display it directly:
+
+```typescript
+function SyncBanner({ syncStatus }: { syncStatus: SyncStatusResponse }) {
+  if (!syncStatus.message) return null;
+
+  // pipeline_running → info banner, sync_needed → warning banner
+  if (syncStatus.pipeline_running) {
+    return <Alert variant="info">{syncStatus.message}</Alert>;
+  }
+
+  if (syncStatus.sync_needed) {
+    return <Alert variant="warning">{syncStatus.message}</Alert>;
+  }
+
+  return null;
+}
+```
+
+### Step 4: Handle 409 Conflict on Pipeline Start and KB Sync
+
+When `POST /pipeline` or `POST /kb/sync` returns 409:
+
+```typescript
+try {
+  await startPipeline(uid, { refresh_mode: "incremental" });
+} catch (err) {
+  if (err instanceof ConflictError) {
+    // Show: "A pipeline is already running (job: {err.runningJobId})"
+    // Optionally link to the running job's progress page
+    showToast(`Pipeline blocked: ${err.message}`);
+  }
+}
+```
+
+The 409 response body includes `running_job_id` — you can use this to link the user to the running job's progress view.
+
+### Step 5: Disable "Sync KB" Button When Pipeline is Running
+
+```typescript
+<Button
+  disabled={syncStatus.pipeline_running}
+  onClick={handleKbSync}
+>
+  {syncStatus.pipeline_running ? "Pipeline running..." : "Sync KB"}
+</Button>
+```
+
+### Step 6: Invalidate Cache After Mutations
+
+After calling these endpoints, invalidate the corresponding caches:
+
+| After calling | Invalidate |
+|--------------|-----------|
+| `POST /pipeline` | `GET /pipeline`, `GET /stats`, `GET /sync-status` |
+| `POST /kb/sync` | `GET /kb/sync`, `GET /stats`, `GET /sync-status` |
+| `POST /.../rename` or `POST /.../delete` | `GET /categories`, `GET /sync-status` |
+| `POST /.../pages` or `DELETE /.../pages` | `GET /.../pages`, `GET /categories`, `GET /sync-status` |
+| `POST /reset` | ALL caches for this university |
+
+### Step 7: Remove Old Session-Based Sync Tracking (if applicable)
+
+If your frontend previously tracked "pending KB changes" in local/session state (e.g., `pendingKbChanges` flag set after category operations), remove it entirely. The server now tracks all sync reasons via `GET /sync-status`.
