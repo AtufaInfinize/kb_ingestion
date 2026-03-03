@@ -215,7 +215,11 @@ export interface DashboardStats {
   kb_ingestion: KBIngestionStats;
   /** New/modified pages from latest crawl (tracked by content-cleaner, NOT Bedrock failures) */
   pages_changed: number;
-  /** True when crawl changed pages and KB Sync hasn't been triggered yet */
+  /** Number of category operations (rename/delete/add/remove) since last KB sync */
+  categories_modified: number;
+  /** True if data was reset since last KB sync */
+  data_reset: boolean;
+  /** True when any sync trigger is active: pages_changed > 0, categories_modified > 0, data_reset, or status == "pending_sync" */
   pending_kb_sync: boolean;
   /** Count of URLs with crawl_status=dead */
   dead_urls: number;
@@ -453,6 +457,26 @@ export interface KBSyncStatusResponse {
     recent_jobs?: IngestionJob[];
     error?: string;
   }>;
+}
+
+// ─── Sync Status Health Check ────────────────────────────
+
+export interface SyncStatusResponse {
+  university_id: string;
+  /** True when any sync trigger is active */
+  sync_needed: boolean;
+  /** Breakdown of why sync is needed */
+  reasons: {
+    pages_changed: number;
+    categories_modified: number;
+    data_reset: boolean;
+  };
+  /** Raw kb_sync_status value: "running", "pending_sync", "no_changes", "syncing" */
+  status: string | null;
+  crawl_completed_at: string | null;
+  synced_at: string | null;
+  /** Whether a pipeline is currently running */
+  pipeline_running: boolean;
 }
 
 // ─── Freshness & Schedule ───────────────────────────────
